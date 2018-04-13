@@ -32,6 +32,10 @@ OPENSSL_NAME=openssl-$OPENSSL_VERSION
 OPENSSL_PKG=${OPENSSL_NAME}.tar.gz
 OPENSSL_URL=https://www.openssl.org/source/old/${OPENSSL_VERSION%[a-z]}/$OPENSSL_PKG
 
+ZLIB_NAME=zlib-1.2.11
+ZLIB_PKG=${ZLIB_NAME}.tar.gz
+ZLIB_URL=http://www.zlib.net/$ZLIB_PKG
+
 CACHE_PURGE_NAME=ngx_cache_purge-2.3
 CACHE_PURGE_PKG=${CACHE_PURGE_NAME}.tar.gz
 CACHE_PURGE_URL=http://labs.frickle.com/files/$CACHE_PURGE_PKG
@@ -51,10 +55,10 @@ UPSTREAM_NAME=nginx-upstream-fair-$UPSTREAM_VERSION
 UPSTREAM_PKG=${UPSTREAM_NAME}.zip
 UPSTREAM_URL=https://github.com/gnosek/nginx-upstream-fair/archive/${UPSTREAM_VERSION}.zip
 
-LUR_VERSION=0.10.11
-LUR_NAME=lua-nginx-module-$LUR_VERSION
-LUR_PKG=${LUR_NAME}.tar.gz
-LUR_URL=https://github.com/openresty/lua-nginx-module/archive/v${LUR_VERSION}.tar.gz
+LUA_VERSION=0.10.11
+LUA_NAME=lua-nginx-module-$LUA_VERSION
+LUA_PKG=${LUA_NAME}.tar.gz
+LUA_URL=https://github.com/openresty/lua-nginx-module/archive/v${LUA_VERSION}.tar.gz
 
 
 # 记录日志
@@ -85,7 +89,7 @@ function init()
     # 安装依赖
     yum -y install wget bzip2 unzip
     yum -y install gcc gcc-c++ make automake autoconf
-    yum -y install gd-devel zlib-devel
+    yum -y install lua-devel gd-devel
 }
 
 # 下载安装包
@@ -107,6 +111,10 @@ function download()
         debug "Wget $OPENSSL_URL"
         wget -c $OPENSSL_URL -O $OPENSSL_PKG
     fi
+    if [[ ! -f $ZLIB_PKG ]]; then
+        debug "Wget $ZLIB_URL"
+        wget -c $ZLIB_URL -O $ZLIB_PKG
+    fi
     if [[ ! -f $CACHE_PURGE_PKG ]]; then
         debug "Wget $CACHE_PURGE_URL"
         wget -c $CACHE_PURGE_URL -O $CACHE_PURGE_PKG
@@ -123,9 +131,9 @@ function download()
         debug "Wget $UPSTREAM_URL"
         wget -c $UPSTREAM_URL -O $UPSTREAM_PKG
     fi
-    if [[ ! -f $LUR_PKG ]]; then
-        debug "Wget $LUR_URL"
-        wget -c $LUR_URL -O $LUR_PKG
+    if [[ ! -f $LUA_PKG ]]; then
+        debug "Wget $LUA_URL"
+        wget -c $LUA_URL -O $LUA_PKG
     fi
 }
 
@@ -141,6 +149,8 @@ function create_user()
 
 function install()
 {
+    init
+
     # 出错立即退出
     set -e
 
@@ -148,11 +158,12 @@ function install()
     tar -xzf $NGINX_PKG
     tar -xjf $PCRE_PKG
     tar -xzf $OPENSSL_PKG
+    tar -xzf $ZLIB_PKG
     tar -xzf $CACHE_PURGE_PKG
     tar -xzf $DEVEL_KIT_PKG
     tar -xzf $FORM_INPUT_PKG
     unzip -o $UPSTREAM_PKG
-    tar -xzf $LUR_PKG
+    tar -xzf $LUA_PKG
 
     cd $NGINX_NAME
 
@@ -176,11 +187,12 @@ function install()
 --with-http_image_filter_module \
 --with-pcre=$DIR/$PCRE_NAME \
 --with-openssl=$DIR/$OPENSSL_NAME \
+--with-zlib=$DIR/$ZLIB_NAME \
 --add-module=$DIR/$CACHE_PURGE_NAME \
 --add-module=$DIR/$DEVEL_KIT_NAME \
 --add-module=$DIR/$FORM_INPUT_NAME \
 --add-module=$DIR/$UPSTREAM_NAME \
---add-module=$DIR/$LUR_NAME \
+--add-module=$DIR/$LUA_NAME \
 --with-ld-opt="-Wl,-rpath,/usr/local/lib" \
 --http-client-body-temp-path=$NGINX_TMP_DIR/client \
 --http-proxy-temp-path=$NGINX_TMP_DIR/proxy \
@@ -195,17 +207,18 @@ function install()
     make install
 
     # 清理
-    rm -rf $NGINX_NAME $PCRE_NAME $OPENSSL_NAME $CACHE_PURGE_NAME $DEVEL_KIT_NAME $FORM_INPUT_NAME $UPSTREAM_NAME $LUR_NAME
+    cd -
+    rm -rf $NGINX_NAME $PCRE_NAME $OPENSSL_NAME $ZLIB_NAME $CACHE_PURGE_NAME $DEVEL_KIT_NAME $FORM_INPUT_NAME $UPSTREAM_NAME $LUA_NAME
 }
 
 # 注册服务
 function reg_service()
 {
     if [[ "$SYS_VERSION" =~ 6 ]]; then
-        cp -f $DIR/conf/nginx /etc/init.d
+        cp -f $DIR/conf/nginx /etc/init.d/
         chmod +x /etc/init.d/nginx
     elif [[ "$SYS_VERSION" =~ 7 ]]; then
-        cp -f $DIR/conf/nginx.service /lib/systemd/system
+        cp -f $DIR/conf/nginx.service /lib/systemd/system/
         chmod +x /lib/systemd/system/nginx.service
     fi
 }
@@ -215,6 +228,10 @@ function start()
 {
     # 创建目录
     mkdir -p $NGINX_LOG_DIR $NGINX_TMP_DIR
+    nginx -V 2>&1 | grep "configure arguments" | awk -F '=' 'BEGIN{RS=" "} /-temp-path/ {print $2}' | xargs -r mkdir -p
+
+    # 修改目录所有者
+    chown -R $NGINX_USER:$NGINX_GROUP $NGINX_LOG_DIR $NGINX_TMP_DIR
 
     if [[ "$SYS_VERSION" =~ 6 ]]; then
         service nginx start
@@ -237,13 +254,26 @@ function auto_start()
 # 卸载nginx
 function clean_nginx()
 {
+    # 关闭nginx
+    nginx -s quit
+
+    # 删除安装目录 配置文件目录 日志目录 临时目录
     rm -rf $NGINX_INSTALL_DIR $NGINX_CONF_DIR $NGINX_LOG_DIR $NGINX_TMP_DIR /usr/sbin/nginx
+
+    if [[ "$SYS_VERSION" =~ 6 ]]; then
+        chkconfig --del /etc/init.d/nginx
+        chkconfig nginx off
+        rm -f /etc/init.d/nginx
+    elif [[ "$SYS_VERSION" =~ 7 ]]; then
+        systemctl disable nginx.service
+        rm -f /lib/systemd/system/nginx.service
+    fi
 }
 
 # 打印用法
 function print_usage()
 {
-    echo "Usage: $0 [-a auto start] [-c create user] [-d download] [-i install] [-r register system service] [-s start] [-v verbose]"
+    echo "Usage: $0 [-a auto start] [-c create user] [-d download] [-i install] [-r register system service] [-s start] [-u uninstall] [-v verbose]"
 }
 
 # 管理
@@ -277,7 +307,7 @@ function main()
         exit 1
     fi
 
-    while getopts "cdirs:v" name; do
+    while getopts "acdirsuv" name; do
         case "$name" in
             a)
                 auto_flag=1;;
@@ -291,6 +321,8 @@ function main()
                 register_flag=1;;
             s)
                 start_flag=1;;
+            u)
+                clean_flag=1;;
             v)
                 debug_flag=1;;
             ?)
@@ -298,8 +330,6 @@ function main()
                 exit 1;;
         esac
     done
-
-    init
 
     [[ $create_flag ]] && log_fn create_user
 
@@ -312,5 +342,7 @@ function main()
     [[ $auto_flag ]] && log_fn auto_start
 
     [[ $start_flag ]] && log_fn start
+
+    [[ $clean_flag ]] && log_fn clean_nginx
 }
 main "$@"
