@@ -13,7 +13,7 @@ cd - > /dev/null
 # 系统版本号
 SYS_VERSION=`sed 's/.* release \([0-9]\.[0-9]\).*/\1/' /etc/redhat-release`
 
-NGINX_NAME=nginx-1.10.3
+NGINX_NAME=nginx-1.14.0
 NGINX_PKG=${NGINX_NAME}.tar.gz
 NGINX_URL=http://nginx.org/download/$NGINX_PKG
 NGINX_USER=nginx
@@ -211,14 +211,156 @@ function install()
     rm -rf $NGINX_NAME $PCRE_NAME $OPENSSL_NAME $ZLIB_NAME $CACHE_PURGE_NAME $DEVEL_KIT_NAME $FORM_INPUT_NAME $UPSTREAM_NAME $LUA_NAME
 }
 
+# 生成服务脚本
+function gen_service()
+{
+    echo -e "
+#!/bin/bash
+#
+# nginx - this script starts and stops the nginx daemon
+#
+# chkconfig: - 85 15
+# description: Nginx is an HTTP(S) server, HTTP(S) reverse
+# proxy and IMAP/POP3 proxy server
+# processname: nginx
+# config: /etc/nginx/nginx.conf
+# config: /etc/sysconfig/nginx
+# pidfile: /var/run/nginx.pid
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Check that networking is up.
+[ "$NETWORKING" = "no" ] && exit 0
+
+TENGINE_HOME="/work/install/nginx-1.10.3"
+nginx="/usr/sbin/nginx"
+prog=$(basename $nginx)
+
+NGINX_CONF_FILE="/work/install/nginx-1.10.3/conf/nginx.conf"
+
+[ -f /etc/sysconfig/nginx ] && /etc/sysconfig/nginx
+
+lockfile=/var/lock/subsys/nginx
+
+start() {
+    [ -x $nginx ] || exit 5
+    [ -f $NGINX_CONF_FILE ] || exit 6
+    echo -n $"Starting $prog: "
+    daemon $nginx -c $NGINX_CONF_FILE
+    retval=$?
+    echo
+    [ $retval -eq 0 ] && touch $lockfile
+    return $retval
+}
+
+stop() {
+    echo -n $"Stopping $prog: "
+    killproc $prog -QUIT
+    retval=$?
+    echo
+    [ $retval -eq 0 ] && rm -f $lockfile
+    return $retval
+    killall -9 nginx
+}
+
+restart() {
+    configtest || return $?
+    stop
+    sleep 1
+    start
+}
+
+reload() {
+    configtest || return $?
+    echo -n $"Reloading $prog: "
+    killproc $nginx -HUP
+    RETVAL=$?
+    echo
+}
+
+force_reload() {
+    restart
+}
+
+configtest() {
+    $nginx -t -c $NGINX_CONF_FILE
+}
+
+rh_status() {
+    status $prog
+}
+
+rh_status_q() {
+    rh_status >/dev/null 2>&1
+}
+
+case "$1" in
+start)
+    rh_status_q && exit 0
+    $1
+;;
+stop)
+    rh_status_q || exit 0
+    $1
+;;
+restart|configtest)
+    $1
+;;
+reload)
+    rh_status_q || exit 7
+    $1
+;;
+force-reload)
+    force_reload
+;;
+status)
+    rh_status
+;;
+condrestart|try-restart)
+    rh_status_q || exit 0
+;;
+*)
+
+echo $"Usage: $0 {start|stop|status|restart|condrestart|try-restart|reload|force-reload|configtest}"
+exit 2
+esac
+"
+}
+
+# 生成服务脚本 centos 7
+function gen_service_7()
+{
+    echo -e "
+[Unit]
+Description=The nginx HTTP and reverse proxy server
+After=syslog.target network.target remote-fs.target nss-lookup.target
+
+[Service]
+Type=forking
+PIDFile=$NGINX_LOG_DIR/nginx.pid
+ExecStartPre=/usr/sbin/nginx -t
+ExecStart=/usr/sbin/nginx
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s QUIT $MAINPID
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+"
+}
+
 # 注册服务
 function reg_service()
 {
     if [[ "$SYS_VERSION" =~ 6 ]]; then
-        cp -f $DIR/conf/nginx /etc/init.d/
+        gen_service > /etc/init.d/nginx
         chmod +x /etc/init.d/nginx
     elif [[ "$SYS_VERSION" =~ 7 ]]; then
-        cp -f $DIR/conf/nginx.service /lib/systemd/system/
+        gen_service_7 > /lib/systemd/system/nginx.service
         chmod +x /lib/systemd/system/nginx.service
     fi
 }
