@@ -3,13 +3,13 @@
 # gitlab安装运维手册
 
 
-GIBLAB_VERSION=
+GIBLAB_VERSION=11.4.7
 
 
 # 安装环境
 function install_env()
 {
-    yum install -y curl policycoreutils-python openssh-server
+    yum install -y curl policycoreutils-python openssh-server patch
 }
 
 # 安装
@@ -20,6 +20,28 @@ function install()
     wget https://mirrors.tuna.tsinghua.edu.cn/gitlab-ce/yum/el7/gitlab-ce-11.2.3-ce.0.el7.x86_64.rpm
     EXTERNAL_URL="http://gitlab.example.com"
     yum install -y gitlab-ee
+
+    # 修改nginx端口
+#    /etc/gitlab/gitlab.rb
+#    nginx['listen_port'] = 90
+#    /var/opt/gitlab/nginx/conf/gitlab-http.conf
+#    listen *:90;
+}
+
+# 汉化
+function chinesize()
+{
+    # 获取汉化包
+    git clone https://gitlab.com/xhang/gitlab.git
+
+    # 比较汉化标签和源标签，导出patch
+    cd gitlab
+    git diff v$GIBLAB_VERSION v$GIBLAB_VERSION-zh > ../$GIBLAB_VERSION-zh.diff
+
+    # 更新补丁到gitlab中
+    cd -
+    patch -d /opt/gitlab/embedded/service/gitlab-rails -p1 < $GIBLAB_VERSION-zh.diff
+    # 按住回车键
 }
 
 # 管理
