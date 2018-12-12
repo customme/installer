@@ -24,8 +24,8 @@ function install()
     # 修改nginx端口
 #    /etc/gitlab/gitlab.rb
 #    nginx['listen_port'] = 90
-#    /var/opt/gitlab/nginx/conf/gitlab-http.conf
-#    listen *:90;
+
+    # 运行gitlab-ctl reconfigure命令后/var/opt/gitlab/nginx/conf/gitlab-http.conf nginx端口会自动改过来
 }
 
 # 汉化
