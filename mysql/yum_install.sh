@@ -3,21 +3,8 @@
 # 用yum安装mysql
 
 
-BASE_DIR=`pwd`
-REL_DIR=`dirname $0`
-cd $REL_DIR
-DIR=`pwd`
-cd - > /dev/null
-
-
-source /etc/profile
-source ~/.bash_profile
-source $DIR/../common/common.sh
-source $DIR/config.sh
-
-
-MYSQL_VERSION=5.7.24
-MYSQL_YUM_RPM=mysql80-community-release-el7-1.noarch.rpm
+MYSQL_VERSION=5.7.26
+MYSQL_YUM_RPM=mysql80-community-release-el7-3.noarch.rpm
 MYSQL_YUM_URL=https://repo.mysql.com/$MYSQL_YUM_RPM
 MYSQL_GROUP=mysql
 MYSQL_USER=mysql
