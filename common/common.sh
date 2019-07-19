@@ -6,7 +6,7 @@
 # Dependency: yum autossh autoscp
 
 
-source ./config.sh
+source $BASE_DIR/common/config.sh
 
 
 # 记录日志
@@ -43,11 +43,14 @@ function local_ip()
     # 本机ip
     local ip=`ifconfig eth0 2> /dev/null | grep "inet addr" | cut -d ":" -f 2 | cut -d " " -f 1`
     if [[ -z "$ip" ]]; then
-        ip=`ifconfig eno1 2> /dev/null | grep "inet " | awk '{print $2}'`
+        for netcard in ${NETCARDS[@]}; do
+            ip=`ifconfig $netcard 2> /dev/null | grep "inet " | awk '{print $2}'`
+            if [[ -n "$ip" ]]; then
+                break
+            fi
+        done
     fi
-    if [[ -z "$ip" ]]; then
-        ip=`ifconfig ens3 2> /dev/null | grep "inet " | awk '{print $2}'`
-    fi
+
     if [[ -z "$ip" ]]; then
         log "Unable to get local ip"
         return 1
@@ -55,12 +58,15 @@ function local_ip()
         echo $ip
     fi
 }
+LOCAL_IP=`local_ip`
 
 # 获取系统版本号
 function sys_version()
 {
     sed 's/.* release \([0-9]\.[0-9]\).*/\1/' /etc/redhat-release
 }
+SYS_VERSION=`sys_version`
+
 
 # 获取ssh端口号
 function ssh_port()
@@ -132,12 +138,12 @@ function install_deps()
     set -e
     # autossh autoscp
     if [[ ! -e /usr/bin/autossh ]]; then
-        cp -f ${DIR:-`pwd`}/autossh.exp /usr/lib/
+        cp -f ${BASE_DIR:-`pwd`}/common/autossh.exp /usr/lib/
         ln -sf /usr/lib/autossh.exp /usr/bin/autossh
         chmod +x /usr/bin/autossh
     fi
     if [[ ! -e /usr/bin/autoscp ]]; then
-        cp -f ${DIR:-`pwd`}/autoscp.exp /usr/lib/
+        cp -f ${BASE_DIR:-`pwd`}/common/autoscp.exp /usr/lib/
         ln -sf /usr/lib/autoscp.exp /usr/bin/autoscp
         chmod +x /usr/bin/autoscp
     fi
@@ -263,12 +269,11 @@ function install_jdk()
 
             $JAVA_HOME/bin/java -version > /dev/null 2>&1 ||
             (
-                if [[ `file $JAVA_PKG` =~ RPM ]]; then
-                    rpm -i --quiet $JAVA_PKG
+                if [[ `file $PKG_DIR/$JAVA_PKG` =~ RPM ]]; then
+                    rpm -i --quiet $PKG_DIR/$JAVA_PKG
                 else
-                    tar -zxf $JAVA_PKG
                     mkdir -p $JAVA_INSTALL_DIR
-                    mv -f $JAVA_NAME $JAVA_INSTALL_DIR
+                    tar -zxf $PKG_DIR/$JAVA_PKG -C $JAVA_INSTALL_DIR
                     ln -snf $JAVA_INSTALL_DIR/$JAVA_NAME $JAVA_HOME
                 fi
 
@@ -284,13 +289,12 @@ function install_jdk()
 
             autossh "$admin_passwd" ${admin_user}@${ip} "$JAVA_HOME/bin/java -version" > /dev/null 2>&1 ||
             (
-                autoscp "$admin_passwd" $JAVA_PKG ${admin_user}@${ip}:$JAVA_PKG
-                if [[ `file $JAVA_PKG` =~ RPM ]]; then
-                    autossh "$admin_passwd" ${admin_user}@${ip} "rpm -i --quiet $JAVA_PKG"
+                autoscp "$admin_passwd" $PKG_DIR/$JAVA_PKG ${admin_user}@${ip}:$PKG_DIR
+                if [[ `file $PKG_DIR/$JAVA_PKG` =~ RPM ]]; then
+                    autossh "$admin_passwd" ${admin_user}@${ip} "rpm -i --quiet $PKG_DIR/$JAVA_PKG"
                 else
-                    autossh "$admin_passwd" ${admin_user}@${ip} "tar -zxf $JAVA_PKG"
                     autossh "$admin_passwd" ${admin_user}@${ip} "mkdir -p $JAVA_INSTALL_DIR"
-                    autossh "$admin_passwd" ${admin_user}@${ip} "mv -f $JAVA_NAME $JAVA_INSTALL_DIR"
+                    autossh "$admin_passwd" ${admin_user}@${ip} "tar -zxf $PKG_DIR/$JAVA_PKG -C $JAVA_INSTALL_DIR"
                     autossh "$admin_passwd" ${admin_user}@${ip} "ln -snf $JAVA_INSTALL_DIR/$JAVA_NAME $JAVA_HOME"
                 fi
 
@@ -309,8 +313,8 @@ function install_jdk()
 function install_scala()
 {
     # 下载scala
-    if [[ ! -f $SCALA_PKG ]]; then
-        wget $SCALA_URL
+    if [[ ! -f $PKG_DIR/$SCALA_PKG ]]; then
+        wget $SCALA_URL -P $PKG_DIR
     fi
 
     echo "$HOSTS" | while read ip hostname admin_user admin_passwd others; do
@@ -318,9 +322,8 @@ function install_scala()
         if [[ "$ip" = "$LOCAL_IP" ]]; then
             $SCALA_HOME/bin/scala -version > /dev/null 2>&1 ||
             (
-                tar -zxf $SCALA_PKG
                 mkdir -p $SCALA_INSTALL_DIR
-                mv -f $SCALA_NAME $SCALA_INSTALL_DIR
+                tar -zxf $PKG_DIR/$SCALA_PKG -C $SCALA_INSTALL_DIR
                 ln -snf $SCALA_INSTALL_DIR/$SCALA_NAME $SCALA_HOME
 
                 sed -i '/^# scala config start/,/^# scala config end/d' /etc/profile
@@ -333,10 +336,9 @@ function install_scala()
         else
             autossh "$admin_passwd" ${admin_user}@${ip} "$SCALA_HOME/bin/scala -version" > /dev/null 2>&1 ||
             (
-                autoscp "$admin_passwd" $SCALA_PKG ${admin_user}@${ip}:~/$SCALA_PKG
-                autossh "$admin_passwd" ${admin_user}@${ip} "tar -zxf $SCALA_PKG"
+                autoscp "$admin_passwd" $PKG_DIR/$SCALA_PKG ${admin_user}@${ip}:$PKG_DIR
                 autossh "$admin_passwd" ${admin_user}@${ip} "mkdir -p $SCALA_INSTALL_DIR"
-                autossh "$admin_passwd" ${admin_user}@${ip} "mv -f $SCALA_NAME $SCALA_INSTALL_DIR"
+                autossh "$admin_passwd" ${admin_user}@${ip} "tar -zxf $PKG_DIR/$SCALA_PKG -C $SCALA_INSTALL_DIR"
                 autossh "$admin_passwd" ${admin_user}@${ip} "ln -snf $SCALA_INSTALL_DIR/$SCALA_NAME $SCALA_HOME"
 
                 autossh "$admin_passwd" ${admin_user}@${ip} "sed -i '/^# scala config start/,/^# scala config end/d' /etc/profile"
