@@ -125,14 +125,10 @@ function install_deps()
 {
     # 出错立即退出
     set -e
+
     # expect wget
     yum -y -q install expect
     yum -y -q install wget
-
-    # 出错不要立即退出
-    set +e
-    # 删除别名
-    unalias cp mv rm
 
     # 出错立即退出
     set -e
@@ -150,10 +146,6 @@ function install_deps()
 
     # 出错不要立即退出
     set +e
-    # 删除别名
-    echo "$HOSTS" | grep -v $LOCAL_IP | while read ip hostname admin_user admin_passwd others; do
-        autossh "$admin_passwd" ${admin_user}@${ip} "unalias cp mv rm"
-    done
 }
 
 # 检测java环境

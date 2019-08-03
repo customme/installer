@@ -31,7 +31,7 @@ if { [regexp "\&$" $cmd] } {
 }
 
 # 启动ssh进程
-spawn ssh -p $port -o ConnectTimeout=$timeout $userhost "source /etc/profile;source ~/.bash_profile;$cmd$returns"
+spawn ssh -p $port -o ConnectTimeout=$timeout $userhost "source /etc/profile;source ~/.bash_profile;unalias cp mv rm;$cmd$returns"
 
 # 验证密码
 expect {
