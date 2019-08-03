@@ -114,6 +114,8 @@ function admin_vm()
     virsh shutdown $vm_name    # 关闭虚拟机
     virsh destroy $vm_name     # 强制关闭虚拟机
     virsh undefine $vm_name    # 删除虚拟机
+    virsh edit $vm_name        # 编辑虚拟机(调整内存、cpu等)
+    virsh dominfo $vm_name     # 查看虚拟机配置
 }
 
 function main()

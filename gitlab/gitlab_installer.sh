@@ -3,7 +3,7 @@
 # gitlab安装运维手册
 
 
-GIBLAB_VERSION=11.4.7
+GIBLAB_VERSION=11.9.6
 
 
 # 安装环境
@@ -17,7 +17,7 @@ function install()
 {
     # 下载并安装
     curl https://packages.gitlab.com/install/repositories/gitlab/gitlab-ee/script.rpm.sh | sudo bash
-    wget https://mirrors.tuna.tsinghua.edu.cn/gitlab-ce/yum/el7/gitlab-ce-11.2.3-ce.0.el7.x86_64.rpm
+    wget https://mirrors.tuna.tsinghua.edu.cn/gitlab-ce/yum/el7/gitlab-ce-${GITLAB_VERSION}-ce.0.el7.x86_64.rpm
     EXTERNAL_URL="http://gitlab.example.com"
     yum install -y gitlab-ee
 
@@ -36,11 +36,11 @@ function chinesize()
 
     # 比较汉化标签和源标签，导出patch
     cd gitlab
-    git diff v$GIBLAB_VERSION v$GIBLAB_VERSION-zh > ../$GIBLAB_VERSION-zh.diff
+    git diff v$GITLAB_VERSION v$GITLAB_VERSION-zh > ../$GITLAB_VERSION-zh.diff
 
     # 更新补丁到gitlab中
     cd -
-    patch -d /opt/gitlab/embedded/service/gitlab-rails -p1 < $GIBLAB_VERSION-zh.diff
+    patch -d /opt/gitlab/embedded/service/gitlab-rails -p1 < $GITLAB_VERSION-zh.diff
     # 按住回车键
 }
 
