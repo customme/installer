@@ -17,10 +17,13 @@ function install()
         wget $REDIS_URL
     fi
 
+    # 安装依赖
+    yum install -y make gcc
+
     tar -zxf $REDIS_PKG
     cd $REDIS_NAME
     make
-    make install
+    make install PREFIX=/usr/local/redis
 }
 
 # 管理
