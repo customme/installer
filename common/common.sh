@@ -134,13 +134,13 @@ function install_deps()
     set -e
     # autossh autoscp
     if [[ ! -e /usr/bin/autossh ]]; then
-        cp -f ${BASE_DIR:-`pwd`}/common/autossh.exp /usr/lib/
-        ln -sf /usr/lib/autossh.exp /usr/bin/autossh
+        cp -f ${BASE_DIR:-`pwd`}/common/autossh.tcl /usr/lib/
+        ln -sf /usr/lib/autossh.tcl /usr/bin/autossh
         chmod +x /usr/bin/autossh
     fi
     if [[ ! -e /usr/bin/autoscp ]]; then
-        cp -f ${BASE_DIR:-`pwd`}/common/autoscp.exp /usr/lib/
-        ln -sf /usr/lib/autoscp.exp /usr/bin/autoscp
+        cp -f ${BASE_DIR:-`pwd`}/common/autoscp.tcl /usr/lib/
+        ln -sf /usr/lib/autoscp.tcl /usr/bin/autoscp
         chmod +x /usr/bin/autoscp
     fi
 
